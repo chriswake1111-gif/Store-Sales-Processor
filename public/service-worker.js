@@ -1,5 +1,5 @@
 // Service Worker for PWA with Cache-First Strategy
-const CACHE_NAME = 'sales-processor-v4';
+const CACHE_NAME = 'sales-processor-v0.922';
 const urlsToCache = [
   '/',
   '/index.html',
