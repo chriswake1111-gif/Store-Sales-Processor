@@ -195,7 +195,7 @@ const App: React.FC = () => {
 
         <div className="bg-white border-b shadow-sm px-6 py-4 flex justify-between shrink-0">
           <div>
-            <h1 className="text-xl font-bold flex items-center gap-2">分店獎金計算系統 <span className="text-xs bg-gray-100 px-2 rounded-full border">V0.921</span></h1>
+            <h1 className="text-xl font-bold flex items-center gap-2">分店獎金計算系統 <span className="text-xs bg-gray-100 px-2 rounded-full border">V0.922</span></h1>
             {lastSaveTime && <span className="text-xs text-gray-400 mt-1 flex gap-1"><Save size={12}/> 自動儲存於: {new Date(lastSaveTime).toLocaleTimeString()}</span>}
           </div>
           <div className="flex gap-3">
