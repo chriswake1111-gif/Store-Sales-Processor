@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { RawRow, ExclusionItem, RewardRule, ProcessedData, Stage1Status } from './types';
 import { readExcelFile, exportToExcel } from './utils/excelHelper';
@@ -53,6 +52,7 @@ const App: React.FC = () => {
 
     const handler = (e: any) => {
       e.preventDefault();
+      console.log('PWA: beforeinstallprompt event fired'); // Debug log
       setDeferredPrompt(e);
     };
     window.addEventListener('beforeinstallprompt', handler);
