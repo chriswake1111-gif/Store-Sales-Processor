@@ -17,8 +17,6 @@ export const readExcelFile = (file: File): Promise<any[]> => {
           const sheet = workbook.Sheets[workbook.SheetNames[0]];
           resolve(XLSX.utils.sheet_to_json(sheet));
         } catch (err) {
-          // If first attempt failed and it was binary strategy, try array fallback logic if needed
-          // But usually we just reject here or implementing detailed fallback flow
           reject(err);
         }
       };
@@ -121,15 +119,18 @@ export const exportToExcel = async (processedData: ProcessedData, defaultFilenam
 
     const ws = XLSX.utils.aoa_to_sheet(wsData);
     
-    // Apply Styles (Note: Only works in Pro versions of SheetJS or specific environments, but safe to keep)
+    // Apply Styles (Best effort for array mode)
     ws['!cols'] = [{ wch: 15 }, { wch: 8 }, { wch: 12 }, { wch: 12 }, { wch: 25 }, { wch: 8 }, { wch: 20 }, { wch: 15 }];
     
+    // Note: Style injection logic retained but simplified. 
+    // Actual style rendering requires 'xlsx-js-style' or pro version, but the logic is safe to keep.
     styles.forEach(({r, type}) => {
-      const cell = ws[XLSX.utils.encode_cell({ r, c: 0 })];
-      if (cell && type === 'section') {
-        cell.s = { font: { bold: true, sz: 14, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "4F81BD" } } };
-      }
-      if (type === 'header') {
+      const cellAddress = XLSX.utils.encode_cell({ r, c: 0 });
+      if (!ws[cellAddress]) return;
+      
+      if (type === 'section') {
+        ws[cellAddress].s = { font: { bold: true, sz: 14, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "4F81BD" } } };
+      } else if (type === 'header') {
         const row = wsData[r];
         row.forEach((_, c) => {
           const hCell = ws[XLSX.utils.encode_cell({ r, c })];
@@ -156,8 +157,7 @@ export const exportToExcel = async (processedData: ProcessedData, defaultFilenam
   // Save File
   if ('showSaveFilePicker' in window) {
     try {
-      // @ts-ignore
-      const handle = await window.showSaveFilePicker({
+      const handle = await (window as any).showSaveFilePicker({
         suggestedName: `${defaultFilename}.xlsx`,
         types: [{ description: 'Excel File', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }],
       });

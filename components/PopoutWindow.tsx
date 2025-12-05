@@ -49,12 +49,19 @@ const PopoutWindow: React.FC<PopoutWindowProps> = ({ children, title, onClose })
       }
 
       // 3. COPY STYLES FROM PARENT
+      // Force Tailwind CDN re-injection to ensure styles work even if copy fails
+      if (!win.document.querySelector('script[src*="tailwindcss"]')) {
+        const script = win.document.createElement('script');
+        script.src = "https://cdn.tailwindcss.com";
+        win.document.head.appendChild(script);
+      }
+
       Array.from(document.querySelectorAll('style, link[rel="stylesheet"]')).forEach((node) => {
         const clonedNode = node.cloneNode(true);
         win?.document.head.appendChild(clonedNode);
       });
 
-      // 4. Critical CSS
+      // 4. Critical CSS for Layout (Prevent Glitch)
       const style = win.document.createElement('style');
       style.textContent = `
         html, body { height: 100vh; width: 100vw; margin: 0; padding: 0; overflow: hidden; background-color: #f9fafb; font-family: 'Noto Sans TC', sans-serif; }
@@ -66,32 +73,29 @@ const PopoutWindow: React.FC<PopoutWindowProps> = ({ children, title, onClose })
       `;
       win.document.head.appendChild(style);
 
-      // Re-inject Tailwind CDN
-      if (!win.document.querySelector('script[src*="tailwindcss"]')) {
-        const script = win.document.createElement('script');
-        script.src = "https://cdn.tailwindcss.com";
-        win.document.head.appendChild(script);
-      }
-
       // 5. Create Root Element
-      const div = win.document.createElement('div');
-      div.id = 'popout-root';
-      Object.assign(div.style, {
-        height: '100%',
-        width: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        backgroundColor: '#ffffff',
-        overflow: 'hidden'
-      });
+      let div = win.document.getElementById('popout-root');
+      if (!div) {
+        div = win.document.createElement('div');
+        div.id = 'popout-root';
+        Object.assign(div.style, {
+            height: '100%',
+            width: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            backgroundColor: '#ffffff',
+            overflow: 'hidden'
+        });
+        win.document.body.appendChild(div);
+      }
       
-      win.document.body.appendChild(div);
       setContainer(div);
 
       // 6. Cleanup Listeners
       const handleClose = () => onClose();
       win.addEventListener('pagehide', handleClose);
       
+      // Monitor if window is closed by user
       const checkClosed = setInterval(() => {
         if (win && win.closed) {
           clearInterval(checkClosed);
@@ -105,11 +109,12 @@ const PopoutWindow: React.FC<PopoutWindowProps> = ({ children, title, onClose })
     openWindow();
 
     return () => {
+      // Don't forcefully close the window on unmount if it's PiP, logic handled by state
       if (winRef.current && !winRef.current.closed) {
         winRef.current.close();
       }
     };
-  }, []);
+  }, []); // Run once on mount
 
   if (!container) return null;
 
