@@ -2,7 +2,7 @@
 {
   "name": "store-sales-processor",
   "private": true,
-  "version": "0.9.2",
+  "version": "0.9.21",
   "type": "module",
   "scripts": {
     "dev": "vite",

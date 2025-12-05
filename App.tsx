@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { RawRow, ExclusionItem, RewardRule, ProcessedData, Stage1Status } from './types';
 import { readExcelFile, exportToExcel } from './utils/excelHelper';
@@ -324,7 +325,7 @@ const App: React.FC = () => {
         <div className="bg-white border-b shadow-sm px-6 py-4 flex items-center justify-between shrink-0">
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-              分店獎金計算系統 <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full border border-gray-200">V0.92</span>
+              分店獎金計算系統 <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full border border-gray-200">V0.921</span>
             </h1>
             {lastSaveTime && (
                <span className="text-xs text-gray-400 mt-1 flex items-center gap-1">
