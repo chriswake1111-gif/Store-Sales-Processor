@@ -4,6 +4,8 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <link rel="apple-touch-icon" href="/vite.svg" />
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="white">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#ffffff" />
     <title>分店獎金計算系統</title>
@@ -17,7 +19,7 @@
       ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
       ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
     </style>
-  <script type="importmap">
+<script type="importmap">
 {
   "imports": {
     "react": "https://aistudiocdn.com/react@^19.2.1",
@@ -36,15 +38,5 @@
   <body class="bg-gray-50 text-gray-900 h-screen overflow-hidden">
     <div id="root" class="h-full"></div>
     <script type="module" src="./index.tsx"></script>
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          // Use relative path to avoid origin mismatch in preview environments
-          navigator.serviceWorker.register('./sw.js')
-            .then(reg => console.log('SW registered with scope:', reg.scope))
-            .catch(err => console.warn('SW registration failed:', err));
-        });
-      }
-    </script>
   </body>
 </html>

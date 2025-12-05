@@ -6,7 +6,7 @@ import { saveToLocal, loadFromLocal, checkSavedData } from './utils/storage';
 import FileUploader from './components/FileUploader';
 import PopoutWindow from './components/PopoutWindow';
 import DataViewer from './components/DataViewer';
-import { Download, Maximize2, AlertCircle, MonitorDown, Save, FolderOpen } from 'lucide-react';
+import { Download, Maximize2, AlertCircle, MonitorDown, Save, FolderOpen, X } from 'lucide-react';
 
 const App: React.FC = () => {
   const [exclusionList, setExclusionList] = useState<ExclusionItem[]>([]);
@@ -22,6 +22,8 @@ const App: React.FC = () => {
 
   const [lastSaveTime, setLastSaveTime] = useState<number | null>(null);
   const [hasAutoSave, setHasAutoSave] = useState<boolean>(false);
+  
+  // PWA States
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isStandalone, setIsStandalone] = useState(false);
   
@@ -31,21 +33,23 @@ const App: React.FC = () => {
     const ts = checkSavedData();
     if (ts) { setHasAutoSave(true); setLastSaveTime(ts); }
 
-    // Check if running in standalone mode (already installed)
-    if (window.matchMedia('(display-mode: standalone)').matches) {
-      setIsStandalone(true);
-    }
+    // Step 5: Check Display Mode
+    const checkStandalone = () => {
+      const isApp = window.matchMedia('(display-mode: standalone)').matches;
+      setIsStandalone(isApp);
+    };
+    
+    checkStandalone();
+    window.matchMedia('(display-mode: standalone)').addEventListener('change', checkStandalone);
 
+    // Step 4: Capture Install Prompt
     const handleBeforeInstallPrompt = (e: any) => {
-      // Prevent the mini-infobar from appearing on mobile
       e.preventDefault();
-      // Stash the event so it can be triggered later.
       setDeferredPrompt(e);
       console.log('PWA install prompt captured');
     };
 
     const handleAppInstalled = () => {
-      // Hide the app-provided install promotion
       setDeferredPrompt(null);
       setIsStandalone(true);
       console.log('PWA was installed');
@@ -76,12 +80,9 @@ const App: React.FC = () => {
 
   const handleInstallClick = async () => {
     if (!deferredPrompt) return;
-    // Show the install prompt
     deferredPrompt.prompt();
-    // Wait for the user to respond to the prompt
     const { outcome } = await deferredPrompt.userChoice;
     console.log(`User response to the install prompt: ${outcome}`);
-    // We've used the prompt, and can't use it again, discard it
     setDeferredPrompt(null);
   };
 
@@ -146,7 +147,6 @@ const App: React.FC = () => {
     await exportToExcel(processedData, `獎金計算報表_${new Date().toISOString().slice(0,10)}`, selectedPersons);
   };
 
-  // State Updates
   const updateData = (updater: (d: ProcessedData) => void) => {
     if (!activePerson) return;
     setProcessedData(prev => { const n = { ...prev }; updater(n); return n; });
@@ -177,6 +177,22 @@ const App: React.FC = () => {
   return (
     <>
       <div className="flex flex-col h-full bg-gray-50">
+        {/* Step 5: Recommendation Bar for Browser Mode */}
+        {!isStandalone && deferredPrompt && (
+          <div className="bg-amber-100 border-b border-amber-200 px-4 py-2 flex items-center justify-between text-amber-800 text-sm">
+             <div className="flex items-center gap-2">
+               <MonitorDown size={16} />
+               <span>建議您將此系統安裝到電腦桌面，獲得最佳的全螢幕操作體驗。</span>
+             </div>
+             <button 
+               onClick={handleInstallClick}
+               className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1 rounded shadow-sm text-xs font-bold transition-colors"
+             >
+               立即安裝應用程式
+             </button>
+          </div>
+        )}
+
         <div className="bg-white border-b shadow-sm px-6 py-4 flex justify-between shrink-0">
           <div>
             <h1 className="text-xl font-bold flex items-center gap-2">分店獎金計算系統 <span className="text-xs bg-gray-100 px-2 rounded-full border">V0.921</span></h1>
@@ -184,7 +200,6 @@ const App: React.FC = () => {
           </div>
           <div className="flex gap-3">
              {hasAutoSave && <button onClick={handleLoadSave} className="flex gap-2 px-3 py-2 text-amber-700 bg-amber-50 rounded-lg border border-amber-200"><FolderOpen size={16} /> 讀取存檔</button>}
-             {deferredPrompt && !isStandalone && <button onClick={handleInstallClick} className="flex gap-2 px-3 py-2 text-blue-700 bg-blue-50 rounded-lg border border-blue-200"><MonitorDown size={16} /> 安裝App</button>}
              <button onClick={() => setIsPopOut(true)} disabled={!Object.keys(processedData).length} className="flex gap-2 px-4 py-2 bg-gray-100 rounded-lg disabled:opacity-50"><Maximize2 size={16}/> 小視窗</button>
              <button onClick={handleExport} disabled={!Object.keys(processedData).length} className="flex gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300"><Download size={18} /> 匯出</button>
           </div>
