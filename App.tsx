@@ -1,11 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { RawRow, ExclusionItem, RewardRule, ProcessedData, Stage1Status } from './types';
 import { readExcelFile, exportToExcel } from './utils/excelHelper';
 import { processStage1, processStage2, processStage3, recalculateStage1Points, generateEmptyStage3Rows } from './utils/processor';
 import FileUploader from './components/FileUploader';
 import PopoutWindow from './components/PopoutWindow';
 import DataViewer from './components/DataViewer';
-import { Download, Maximize2, AlertCircle } from 'lucide-react';
+import { Download, Maximize2, AlertCircle, MonitorDown } from 'lucide-react';
 
 const App: React.FC = () => {
   // --- State ---
@@ -23,6 +23,27 @@ const App: React.FC = () => {
   const [isPopOut, setIsPopOut] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // PWA Install Prompt State
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+    }
+  };
 
   // --- Handlers ---
 
@@ -218,9 +239,18 @@ const App: React.FC = () => {
         {/* Header / Toolbar */}
         <div className="bg-white border-b shadow-sm px-6 py-4 flex items-center justify-between shrink-0">
           <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-            分店獎金計算系統 <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full border border-gray-200">V0.9</span>
+            分店獎金計算系統 <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full border border-gray-200">V0.91</span>
           </h1>
           <div className="flex gap-3">
+             {deferredPrompt && (
+               <button
+                 onClick={handleInstallClick}
+                 className="flex items-center gap-2 px-3 py-2 text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200"
+               >
+                 <MonitorDown size={16} /> 安裝應用程式
+               </button>
+             )}
+             
              <button 
                onClick={() => setIsPopOut(true)}
                disabled={Object.keys(processedData).length === 0}
