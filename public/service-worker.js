@@ -16,7 +16,11 @@ self.addEventListener('install', (event) => {
     caches.open(CACHE_NAME)
       .then((cache) => {
         console.log('Opened cache');
-        return cache.addAll(urlsToCache);
+        // If one file fails, we log it but don't break the whole install (optional robustness)
+        // But for PWA, we typically want all core assets.
+        return cache.addAll(urlsToCache).catch(err => {
+            console.error('Failed to cache resources:', err);
+        });
       })
   );
 });
