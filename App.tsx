@@ -1,11 +1,13 @@
-import React, { useState, useMemo, useEffect } from 'react';
+
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { RawRow, ExclusionItem, RewardRule, ProcessedData, Stage1Status } from './types';
 import { readExcelFile, exportToExcel } from './utils/excelHelper';
 import { processStage1, processStage2, processStage3, recalculateStage1Points, generateEmptyStage3Rows } from './utils/processor';
+import { saveToLocal, loadFromLocal, checkSavedData } from './utils/storage';
 import FileUploader from './components/FileUploader';
 import PopoutWindow from './components/PopoutWindow';
 import DataViewer from './components/DataViewer';
-import { Download, Maximize2, AlertCircle, MonitorDown } from 'lucide-react';
+import { Download, Maximize2, AlertCircle, MonitorDown, Save, FolderOpen } from 'lucide-react';
 
 const App: React.FC = () => {
   // --- State ---
@@ -24,10 +26,31 @@ const App: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Auto Save State
+  const [lastSaveTime, setLastSaveTime] = useState<number | null>(null);
+  const [hasAutoSave, setHasAutoSave] = useState<boolean>(false);
+  
+  // Ref to hold current state for auto-save interval to access without closure issues
+  const stateRef = useRef({
+    exclusionList,
+    rewardRules,
+    rawSalesData,
+    processedData,
+    activePerson,
+    selectedPersons
+  });
+
   // PWA Install Prompt State
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
+  // 1. Check for existing save on mount
   useEffect(() => {
+    const ts = checkSavedData();
+    if (ts) {
+      setHasAutoSave(true);
+      setLastSaveTime(ts);
+    }
+
     const handler = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
@@ -36,12 +59,63 @@ const App: React.FC = () => {
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
+  // 2. Sync Ref with State
+  useEffect(() => {
+    stateRef.current = {
+      exclusionList,
+      rewardRules,
+      rawSalesData,
+      processedData,
+      activePerson,
+      selectedPersons
+    };
+  }, [exclusionList, rewardRules, rawSalesData, processedData, activePerson, selectedPersons]);
+
+  // 3. Auto Save Interval (Every 3 minutes)
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      // Only save if we have data to save
+      if (stateRef.current.rawSalesData.length > 0) {
+        const ts = saveToLocal(stateRef.current);
+        if (ts) {
+          setLastSaveTime(ts);
+          setHasAutoSave(true);
+          console.log("Auto-saved at", new Date(ts).toLocaleTimeString());
+        }
+      }
+    }, 3 * 60 * 1000); // 3 minutes
+
+    return () => clearInterval(intervalId);
+  }, []);
+
   const handleInstallClick = async () => {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
     if (outcome === 'accepted') {
       setDeferredPrompt(null);
+    }
+  };
+
+  // --- Auto Save Handlers ---
+  
+  const handleLoadSave = () => {
+    const saved = loadFromLocal();
+    if (saved) {
+      if (Object.keys(processedData).length > 0) {
+        if (!window.confirm("目前已有編輯中的資料，讀取存檔將會覆蓋，確定要讀取嗎？")) {
+          return;
+        }
+      }
+
+      setExclusionList(saved.exclusionList);
+      setRewardRules(saved.rewardRules);
+      setRawSalesData(saved.rawSalesData);
+      setProcessedData(saved.processedData);
+      setActivePerson(saved.activePerson);
+      setSelectedPersons(new Set(saved.selectedPersons));
+      setLastSaveTime(saved.timestamp);
+      alert(`已成功還原 ${new Date(saved.timestamp).toLocaleString()} 的自動存檔`);
     }
   };
 
@@ -81,6 +155,15 @@ const App: React.FC = () => {
       alert("請先匯入排除清單與獎勵清單！");
       return;
     }
+
+    // Check for existing save before importing new sales report
+    if (hasAutoSave) {
+       const confirmImport = window.confirm(
+         "偵測到有自動存檔紀錄。匯入新的銷售報表將會覆蓋目前的進度（包含自動存檔），確定要繼續嗎？"
+       );
+       if (!confirmImport) return;
+    }
+
     setIsProcessing(true);
     setErrorMsg(null);
     try {
@@ -184,13 +267,14 @@ const App: React.FC = () => {
     });
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
     if (Object.keys(processedData).length === 0) return;
     if (selectedPersons.size === 0) {
       alert("請至少選擇一位銷售人員進行匯出");
       return;
     }
-    exportToExcel(processedData, `獎金計算報表_${new Date().toISOString().slice(0,10)}`, selectedPersons);
+    const defaultName = `獎金計算報表_${new Date().toISOString().slice(0,10)}`;
+    await exportToExcel(processedData, defaultName, selectedPersons);
   };
 
   const togglePersonSelection = (person: string, e: React.MouseEvent) => {
@@ -238,10 +322,27 @@ const App: React.FC = () => {
       <div className="flex flex-col h-full bg-gray-50">
         {/* Header / Toolbar */}
         <div className="bg-white border-b shadow-sm px-6 py-4 flex items-center justify-between shrink-0">
-          <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-            分店獎金計算系統 <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full border border-gray-200">V0.91</span>
-          </h1>
+          <div className="flex flex-col">
+            <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+              分店獎金計算系統 <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full border border-gray-200">V0.92</span>
+            </h1>
+            {lastSaveTime && (
+               <span className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                 <Save size={12}/> 自動儲存於: {new Date(lastSaveTime).toLocaleTimeString()}
+               </span>
+            )}
+          </div>
           <div className="flex gap-3">
+             {hasAutoSave && (
+               <button
+                 onClick={handleLoadSave}
+                 className="flex items-center gap-2 px-3 py-2 text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg transition-colors border border-amber-200"
+                 title="讀取上次的自動存檔"
+               >
+                 <FolderOpen size={16} /> 讀取自動存檔
+               </button>
+             )}
+          
              {deferredPrompt && (
                <button
                  onClick={handleInstallClick}

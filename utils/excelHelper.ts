@@ -88,7 +88,7 @@ const safeVal = (val: any) => {
 };
 
 // Export Logic
-export const exportToExcel = (processedData: ProcessedData, filename: string, selectedPersons: Set<string>) => {
+export const exportToExcel = async (processedData: ProcessedData, defaultFilename: string, selectedPersons: Set<string>) => {
   const workbook = XLSX.utils.book_new();
 
   // Create a specific sheet for Repurchase data (all sales persons aggregated)
@@ -284,6 +284,40 @@ export const exportToExcel = (processedData: ProcessedData, filename: string, se
     XLSX.utils.book_append_sheet(workbook, wsRepurchase, "回購總表");
   }
 
-  // Write File
-  XLSX.writeFile(workbook, `${filename}.xlsx`);
+  // --- SAVE FILE LOGIC (Modified for File Picker) ---
+  
+  // Method A: Use File System Access API (Modern Browsers - Chrome/Edge)
+  if ('showSaveFilePicker' in window) {
+    try {
+      // @ts-ignore
+      const handle = await window.showSaveFilePicker({
+        suggestedName: `${defaultFilename}.xlsx`,
+        types: [{
+          description: 'Excel File',
+          accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] },
+        }],
+      });
+      
+      // Write the file
+      const writable = await handle.createWritable();
+      const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+      await writable.write(new Blob([wbout], { type: 'application/octet-stream' }));
+      await writable.close();
+      return; // Success
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        // User cancelled, do nothing
+        return;
+      }
+      console.warn("File System Access API failed, falling back...", err);
+      // Fall through to Method B
+    }
+  }
+
+  // Method B: Fallback (Firefox, Safari, or if API fails)
+  // Ask user for filename via prompt since we can't open a Save As dialog
+  const userFilename = window.prompt("請輸入檔案名稱", defaultFilename);
+  if (userFilename) {
+    XLSX.writeFile(workbook, `${userFilename}.xlsx`);
+  }
 };

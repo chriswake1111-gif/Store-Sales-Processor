@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
@@ -16,7 +17,6 @@ const PopoutWindow: React.FC<PopoutWindowProps> = ({ children, title, onClose })
       let win: Window | null = null;
       
       // 1. Try Document Picture-in-Picture API (Always on Top)
-      // Note: This API is newer and primarily in Chrome/Edge.
       if ('documentPictureInPicture' in window) {
         try {
           // @ts-ignore - Types might not be fully available in current env
@@ -49,8 +49,17 @@ const PopoutWindow: React.FC<PopoutWindowProps> = ({ children, title, onClose })
         win.document.close();
       }
 
-      // 3. Inject Critical CSS & Resources
-      // Use inline styles for layout to prevent "Glitch" before Tailwind loads
+      // 3. COPY STYLES FROM PARENT (The Glitch Fix)
+      // This immediately copies all <style> and <link rel="stylesheet"> tags from the main app
+      // ensuring the popout has styles available instantly without waiting for network.
+      Array.from(document.querySelectorAll('style, link[rel="stylesheet"]')).forEach((node) => {
+        // Clone the node deeply
+        const clonedNode = node.cloneNode(true);
+        win?.document.head.appendChild(clonedNode);
+      });
+
+      // 4. Critical CSS Fallback & Additional Resources
+      // Even with copying, we inject explicit critical layout CSS to ensure the root container works
       const style = win.document.createElement('style');
       style.textContent = `
         html, body { 
@@ -84,25 +93,31 @@ const PopoutWindow: React.FC<PopoutWindowProps> = ({ children, title, onClose })
       `;
       win.document.head.appendChild(style);
 
-      // Inject Tailwind CDN
-      const script = win.document.createElement('script');
-      script.src = "https://cdn.tailwindcss.com";
-      win.document.head.appendChild(script);
+      // Re-inject Tailwind CDN (in case parent didn't have it or to ensure fresh load)
+      // Note: If parent had it, it's already copied above, but script tags are sometimes tricky when cloned.
+      // We check if Tailwind script exists, if not add it.
+      if (!win.document.querySelector('script[src*="tailwindcss"]')) {
+        const script = win.document.createElement('script');
+        script.src = "https://cdn.tailwindcss.com";
+        win.document.head.appendChild(script);
+      }
 
-      // Inject Fonts
-      const link = win.document.createElement('link');
-      link.href = "https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap";
-      link.rel = "stylesheet";
-      win.document.head.appendChild(link);
-
-      // 4. Create Root Element
+      // 5. Create Root Element with Immediate Inline Styles
+      // This is crucial to prevent the glitch/flash before CSS loads
       const div = win.document.createElement('div');
       div.id = 'popout-root';
+      div.style.height = '100%';
+      div.style.width = '100%';
+      div.style.display = 'flex';
+      div.style.flexDirection = 'column';
+      div.style.backgroundColor = '#ffffff';
+      div.style.overflow = 'hidden';
+      
       win.document.body.appendChild(div);
       
       setContainer(div);
 
-      // 5. Cleanup Listeners
+      // 6. Cleanup Listeners
       const handleClose = () => {
          onClose();
       };
