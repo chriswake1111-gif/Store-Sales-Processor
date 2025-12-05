@@ -23,12 +23,18 @@ const App: React.FC = () => {
   const [lastSaveTime, setLastSaveTime] = useState<number | null>(null);
   const [hasAutoSave, setHasAutoSave] = useState<boolean>(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isStandalone, setIsStandalone] = useState(false);
   
   const stateRef = useRef({ exclusionList, rewardRules, rawSalesData, processedData, activePerson, selectedPersons });
 
   useEffect(() => {
     const ts = checkSavedData();
     if (ts) { setHasAutoSave(true); setLastSaveTime(ts); }
+
+    // Check if running in standalone mode (already installed)
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      setIsStandalone(true);
+    }
 
     const handleBeforeInstallPrompt = (e: any) => {
       // Prevent the mini-infobar from appearing on mobile
@@ -41,6 +47,7 @@ const App: React.FC = () => {
     const handleAppInstalled = () => {
       // Hide the app-provided install promotion
       setDeferredPrompt(null);
+      setIsStandalone(true);
       console.log('PWA was installed');
     };
 
@@ -177,7 +184,7 @@ const App: React.FC = () => {
           </div>
           <div className="flex gap-3">
              {hasAutoSave && <button onClick={handleLoadSave} className="flex gap-2 px-3 py-2 text-amber-700 bg-amber-50 rounded-lg border border-amber-200"><FolderOpen size={16} /> 讀取存檔</button>}
-             {deferredPrompt && <button onClick={handleInstallClick} className="flex gap-2 px-3 py-2 text-blue-700 bg-blue-50 rounded-lg border border-blue-200"><MonitorDown size={16} /> 安裝App</button>}
+             {deferredPrompt && !isStandalone && <button onClick={handleInstallClick} className="flex gap-2 px-3 py-2 text-blue-700 bg-blue-50 rounded-lg border border-blue-200"><MonitorDown size={16} /> 安裝App</button>}
              <button onClick={() => setIsPopOut(true)} disabled={!Object.keys(processedData).length} className="flex gap-2 px-4 py-2 bg-gray-100 rounded-lg disabled:opacity-50"><Maximize2 size={16}/> 小視窗</button>
              <button onClick={handleExport} disabled={!Object.keys(processedData).length} className="flex gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300"><Download size={18} /> 匯出</button>
           </div>
