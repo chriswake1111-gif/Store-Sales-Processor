@@ -6,7 +6,7 @@ import { saveToLocal, loadFromLocal, checkSavedData } from './utils/storage';
 import FileUploader from './components/FileUploader';
 import PopoutWindow from './components/PopoutWindow';
 import DataViewer from './components/DataViewer';
-import { Download, Maximize2, AlertCircle, MonitorDown, Save, FolderOpen, X } from 'lucide-react';
+import { Download, Maximize2, AlertCircle, MonitorDown, Save, FolderOpen } from 'lucide-react';
 
 const App: React.FC = () => {
   const [exclusionList, setExclusionList] = useState<ExclusionItem[]>([]);
@@ -142,31 +142,69 @@ const App: React.FC = () => {
     } catch (e) { setErrorMsg("處理失敗: " + e); }
   };
 
-  const handleExport = async () => {
+  // Trigger Native Export directly
+  const handleExportClick = async () => {
     if (!selectedPersons.size) return alert("請選擇銷售人員");
-    await exportToExcel(processedData, `獎金計算報表_${new Date().toISOString().slice(0,10)}`, selectedPersons);
+    const defaultFilename = `獎金計算報表_${new Date().toISOString().slice(0,10)}`;
+    // Directly call utils helper. No extra modal logic.
+    await exportToExcel(processedData, defaultFilename, selectedPersons);
   };
 
-  const updateData = (updater: (d: ProcessedData) => void) => {
-    if (!activePerson) return;
-    setProcessedData(prev => { const n = { ...prev }; updater(n); return n; });
+  // Helper for Immutable Updates
+  const setPersonData = (personId: string, transform: (p: ProcessedData[string]) => ProcessedData[string]) => {
+    setProcessedData(prev => {
+      const personData = prev[personId];
+      if (!personData) return prev;
+      return {
+        ...prev,
+        [personId]: transform(personData)
+      };
+    });
   };
-  const handleStatusChangeStage1 = (id: string, s: Stage1Status) => updateData(d => {
-    const rows = d[activePerson].stage1; const i = rows.findIndex(r => r.id === id);
-    if (i !== -1) { rows[i] = { ...rows[i], status: s, calculatedPoints: recalculateStage1Points({ ...rows[i], status: s }) }; }
-  });
-  const handleToggleDeleteStage2 = (id: string) => updateData(d => {
-    const rows = d[activePerson].stage2; const i = rows.findIndex(r => r.id === id);
-    if (i !== -1) rows[i].isDeleted = !rows[i].isDeleted;
-  });
-  const handleUpdateStage2CustomReward = (id: string, val: string) => updateData(d => {
-    const rows = d[activePerson].stage2; const i = rows.findIndex(r => r.id === id);
-    if (i !== -1) rows[i].customReward = val === '' ? undefined : Number(val);
-  });
+
+  const handleStatusChangeStage1 = (id: string, s: Stage1Status) => {
+    if (!activePerson) return;
+    setPersonData(activePerson, (data) => ({
+      ...data,
+      stage1: data.stage1.map(row => 
+        row.id === id 
+          ? { ...row, status: s, calculatedPoints: recalculateStage1Points({ ...row, status: s }) }
+          : row
+      )
+    }));
+  };
+
+  const handleToggleDeleteStage2 = (id: string) => {
+    if (!activePerson) return;
+    setPersonData(activePerson, (data) => ({
+      ...data,
+      stage2: data.stage2.map(row => 
+        row.id === id ? { ...row, isDeleted: !row.isDeleted } : row
+      )
+    }));
+  };
+
+  const handleUpdateStage2CustomReward = (id: string, val: string) => {
+    if (!activePerson) return;
+    setPersonData(activePerson, (data) => ({
+      ...data,
+      stage2: data.stage2.map(row => 
+        row.id === id ? { ...row, customReward: val === '' ? undefined : Number(val) } : row
+      )
+    }));
+  };
 
   const sortedPeople = useMemo(() => Object.keys(processedData).sort(), [processedData]);
   const currentData = useMemo(() => activePerson ? processedData[activePerson] : null, [processedData, activePerson]);
-  const stage1TotalPoints = useMemo(() => currentData?.stage1.reduce((sum, r) => sum + (r.status !== Stage1Status.DELETE ? r.calculatedPoints : 0), 0) || 0, [currentData]);
+  
+  const stage1TotalPoints = useMemo(() => {
+    return currentData?.stage1.reduce((sum, r) => {
+      if (r.status === Stage1Status.DEVELOP || r.status === Stage1Status.HALF_YEAR) {
+        return sum + r.calculatedPoints;
+      }
+      return sum;
+    }, 0) || 0;
+  }, [currentData]);
 
   const dvProps = {
     sortedPeople, selectedPersons, togglePersonSelection: (p: string, e: any) => { e.stopPropagation(); const s = new Set(selectedPersons); s.has(p) ? s.delete(p) : s.add(p); setSelectedPersons(s); },
@@ -177,7 +215,6 @@ const App: React.FC = () => {
   return (
     <>
       <div className="flex flex-col h-full bg-gray-50">
-        {/* Step 5: Recommendation Bar for Browser Mode */}
         {!isStandalone && deferredPrompt && (
           <div className="bg-amber-100 border-b border-amber-200 px-4 py-2 flex items-center justify-between text-amber-800 text-sm">
              <div className="flex items-center gap-2">
@@ -195,13 +232,13 @@ const App: React.FC = () => {
 
         <div className="bg-white border-b shadow-sm px-6 py-4 flex justify-between shrink-0">
           <div>
-            <h1 className="text-xl font-bold flex items-center gap-2">分店獎金計算系統 <span className="text-xs bg-gray-100 px-2 rounded-full border">V0.922</span></h1>
+            <h1 className="text-xl font-bold flex items-center gap-2">分店獎金計算系統 <span className="text-xs bg-gray-100 px-2 rounded-full border">V0.93</span></h1>
             {lastSaveTime && <span className="text-xs text-gray-400 mt-1 flex gap-1"><Save size={12}/> 自動儲存於: {new Date(lastSaveTime).toLocaleTimeString()}</span>}
           </div>
           <div className="flex gap-3">
              {hasAutoSave && <button onClick={handleLoadSave} className="flex gap-2 px-3 py-2 text-amber-700 bg-amber-50 rounded-lg border border-amber-200"><FolderOpen size={16} /> 讀取存檔</button>}
              <button onClick={() => setIsPopOut(true)} disabled={!Object.keys(processedData).length} className="flex gap-2 px-4 py-2 bg-gray-100 rounded-lg disabled:opacity-50"><Maximize2 size={16}/> 小視窗</button>
-             <button onClick={handleExport} disabled={!Object.keys(processedData).length} className="flex gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300"><Download size={18} /> 匯出</button>
+             <button onClick={handleExportClick} disabled={!Object.keys(processedData).length} className="flex gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300"><Download size={18} /> 匯出</button>
           </div>
         </div>
         <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6 shrink-0">
@@ -212,7 +249,9 @@ const App: React.FC = () => {
         {errorMsg && <div className="mx-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 flex gap-2"><AlertCircle size={20} />{errorMsg}</div>}
         {sortedPeople.length > 0 && <div className="flex-1 overflow-hidden px-6 pb-6 pt-2"><div className="h-full border rounded-lg shadow-sm overflow-hidden"><DataViewer {...dvProps} /></div></div>}
       </div>
+      
       {isPopOut && <PopoutWindow title="結果預覽" onClose={() => setIsPopOut(false)}><DataViewer {...dvProps} /></PopoutWindow>}
+      
     </>
   );
 };
